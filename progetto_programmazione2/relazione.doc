@@ -1,0 +1,39 @@
+	Primo Progetto Ocaml						Ornela Danushi
+Progettazione e sviluppo di un interprete in OCaml, con estensione degli alberi binari di espressioni
+Nelle DEFINIZIONI sono incluse, oltre le funzionalità standard, quelle riguardanti la manipolazione degli alberi binari di espressioni, le stesse richieste come da specifica:
+...	| Etree of tree 
+| ApplyOver of exp * exp
+| Update of (ide list) * exp * exp 
+| Select of (ide list) * exp * exp
+and tree = Empty | Node of ide * exp * tree * tree	...
+ e una funzione di ausilio per la costruzione, permettendo la seguente equivalenza:
+	Node(ide, exp, Empty,Empty) → Leaf(ide exp)
+Si possono usare cioè, entrambe le notazioni per il nodo foglia.
+Negli AMBIENTI, la definizione di evT è stata estesa con:
+…	| Vuoto 
+| Tree of tree 
+	and tree = Inode of ide * evT * evT * evT	…
+questo perchè, siccome la valutazione dell’interprete deve ritornare un tipo evT, quest’ultimo deve includere la novità che l’estensione ha comportato, ovvero l’albero.
+Esso può essere vuoto, oppure comprendente identificatore e relativa espressione valutata e risultata evT e se presenti, anche i figli, valutati e risultati di tipo evT, e siccome sono anch’essi alberi sono anche evT.
+Nell’INTERPRETE sono state aggiunte le valutazioni delle nuove funzionalità:
+Etree(tree) : exp → Tree(tree) : evT ; 
+Trasforma la espressione Etree() contenente un tipo albero in un tipo evT valutando ricorsivamente ogni nodo di esso nell’ambiente evT env.
+ApplyOver(exp, Etree(tree)) : exp → Tree(tree) : evT ;
+Trasforma la espressione ApplyOver() contenente 
+la funzione da applicare ad ogni nodo dell’albero, dopo essere stata valutata,
+e albero su cui applicare tale funzione
+in un tipo evT 
+Update(ide list, exp, Etree(tree)) : exp → Tree(tree) : evT ;
+Trasforma la espressione Update() contenente
+	lista di identificatori dei nodi interessati
+	la funzione da applicare solo ai nodi nella lista, dopo aver controllato se presenti
+	e albero su cui applicare tale funzione
+in un tipo evT
+Select(ide list, exp, Etree(tree)) : exp → Tree(tree) : evT ;
+Trasforma la espressione Select() contenente 
+	lista di identificatori dei nodi
+	funzione di valore booleano, 
+		se true → allora considerare i nodi della lista e vedere se l’albero ha tali nodi
+		se false → non fare niente e ritornare Undefined Tree
+	albero su cui applicare tale funzione
+in un tipo evT, ovvero restituisce un sotto-albero di Etree(tree) la cui radice è uno dei nodi di tree se presenti in idelist.

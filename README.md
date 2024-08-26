@@ -1,5 +1,5 @@
 # OCaml
 
-in preparazione agli esami (triennale UniPi):
-- programmazione 1
-- programmazione 2
+exams: (Triennale UniPi):
+- programmazione e laboratorio 1
+- programmazione e laboratorio 2

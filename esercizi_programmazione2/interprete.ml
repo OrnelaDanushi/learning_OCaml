@@ -3,9 +3,9 @@
 type variable = string ;;
 
 type constant = Int of int | Bool of bool ;;
+(* type constant = int ;; *)
 
 type operand = Plus | Minus | Times | Div | LessThan | LessThanEq | MoreThan | MoreThanEq ;;
-
 
 (* Environment *)
 
@@ -15,6 +15,20 @@ let rec lookup env x = match env with
     | []        -> failwith ("not found")
     | (y, v)::r -> if x = y then v else lookup r x 
 ;;
+
+(*
+(* -------------------- TESTING ----------------------*)
+
+(* Association lists map object language variables to their values *)
+let associated_env = [("a", 3); ("c", 78); ("baf", 666); ("b", 111)];;
+
+let value1 = lookup associated_env "a";;
+let value2 = lookup associated_env "c";;
+let value3 = lookup associated_env "baf";;
+let value4 = lookup associated_env "b";;
+
+(* -------------------- TESTING ----------------------*)
+*)
 
 type exp = 						                              (* espressioni *)
   | Constant_e of constant
@@ -62,7 +76,7 @@ let rec tcomp (e:expr) (cenv : string list) : texpr = match e with          (* I
 
 *)
 
-let rec is_value (e:exp) : bool = match e with     (* controllo per valori *)
+let rec is_value (e:exp) : bool = match e with                                           (* controllo per valori *)
     | Constant_e _ -> true
     | Fun_e (_,_) -> true
     | (Op_e(_,_,_) | Var_e _ | If_e(_,_,_)| FunCall_e(_,_) | Let_e(_,_,_)|Letrec_e(_,_,_)) -> false ;;
@@ -70,13 +84,12 @@ let rec is_value (e:exp) : bool = match e with     (* controllo per valori *)
 
 (* Funzioni del run-time *)
 
-exception UnboundVariable of variable ;;		(* casi possibili di runtime exception *)
+exception UnboundVariable of variable ;;		                                        (* casi possibili di runtime exception *)
 exception BadApplication of exp ;;
 exception BadIf of exp ;;
 exception BadOp of exp * operand * exp ;;
 
-(* decodifica delle operazioni di base *)
-let eval_op (v1:exp) (op:operand) (v2:exp) : exp = match v1, op, v2 with 
+let eval_op (v1:exp) (op:operand) (v2:exp) : exp = match v1, op, v2 with               (* decodifica delle operazioni di base *)
     | Constant_e (Int i), Plus, Constant_e (Int j) ->		Constant_e (Int (i+j))
     | Constant_e (Int i), Minus, Constant_e (Int j) ->  	Constant_e (Int (i-j))
     | Constant_e (Int i), Times, Constant_e (Int j) ->  	Constant_e (Int (i*j))
@@ -100,13 +113,11 @@ let eval_op (v1: int)(op: operand)(v2: int) : int = match v1, op, v2 with
     | _, _, _ -> raise (BadOp (v1, op, v2)) ;;
 *)
 
-(* Funzione di sostituzione *)
-
-let substitute (v:exp) (x:variable) (e:exp) : exp =  
-  let rec subst (e:exp) : exp = 				(* notare uso di una funzione ricorsiva ausiliaria *)
+let substitute (v:exp) (x:variable) (e:exp) : exp =                             (* Funzione di sostituzione *)
+  let rec subst (e:exp) : exp = 				                                (* uso di una funzione ricorsiva ausiliaria *)
     match e with 
-      | Var_e y -> if x = y then v else e
       | Constant_e _ -> e
+      | Var_e y -> if x = y then v else e
       | Op_e (e1,op,e2) -> Op_e (subst e1,op,subst e2)
       | If_e (e1,e2,e3) -> If_e (subst e1,subst e2,subst e3)
       | FunCall_e (e1,e2) -> FunCall_e (subst e1,subst e2)
@@ -117,12 +128,9 @@ let substitute (v:exp) (x:variable) (e:exp) : exp =
           else Letrec_e (y,subst e1,subst e2)
   in subst e ;;
 
-(* Ciclo dell'interprete *)
-
-let rec eval (e:exp) : exp =
-  match e with
+let rec eval (e:exp) : exp = match e with                                    (* Ciclo dell'interprete *)
     | Constant_e _ -> e
-    | Fun_e _ -> e
+    | Var_e x -> raise (UnboundVariable x)
     | Op_e (e1,op,e2) -> 
         let v1 = eval e1 in
           let v2 = eval e2 in
@@ -132,66 +140,44 @@ let rec eval (e:exp) : exp =
          | Constant_e (Bool true) -> eval e2
          | Constant_e (Bool false) -> eval e3
          | v1 -> raise (BadIf v1))
-    | Let_e (x,e1,e2) -> eval (substitute (eval e1) x e2)
-    | Var_e x -> raise (UnboundVariable x)
-    | Letrec_e (x,e1,e2) -> 	(* sostituzione per fare unwind della ricorsione *)
-        let e1_unwind = substitute (Letrec_e (x,e1,Var_e x)) x e1 in 
-          eval (Let_e (x,e1_unwind,e2))
     | FunCall_e (e1,e2) ->
         match eval e1 with
            | Fun_e (x,e3) -> eval (substitute (eval e2) x e3)
            | v -> raise (BadApplication v)
+    | Fun_e _ -> e
+    | Let_e (x,e1,e2) -> eval (substitute (eval e1) x e2)
+    | Letrec_e (x,e1,e2) -> 	                                            (* sostituzione per fare unwind della ricorsione *)
+        let e1_unwind = substitute (Letrec_e (x,e1,Var_e x)) x e1 in 
+          eval (Let_e (x,e1_unwind,e2))
 ;;
 
 (* oppure *)
 
-let eval_body (eval_loop:exp->exp) (e:exp) : exp = 
-  match e with
+let eval_body (eval_loop:exp->exp) (e:exp) : exp = match e with
     | Constant_e c -> Constant_e c 
-    | Fun_e (x,e) -> Fun_e (x,e)
+    | Var_e x -> raise (UnboundVariable x)
     | Op_e (e1,op,e2) -> 
         let v1 = eval_loop e1 in 
           let v2 = eval_loop e2 in 
-            apply_op v1 op v2 
+            eval_op v1 op v2 
     | If_e (e1,e2,e3) -> 
           match eval_loop e1 with 
              | Constant_e (Bool true) -> eval_loop e2
              | Constant_e (Bool false) -> eval_loop e3
              | v1 -> raise (BadIf v1)
-    | Let_e (x,e1,e2) -> eval_loop (substitute (eval_loop e1) x e2)
     | FunCall_e (e1,e2) -> 
         match eval_loop e1 with 
            | Fun_e (x,e) -> eval_loop (substitute (eval_loop e2) x e)
            | v1 -> raise (BadApplication v1)
-    | Var_e x -> raise (UnboundVariable x)
+    | Fun_e (x,e) -> Fun_e (x,e)
+    | Let_e (x,e1,e2) -> eval_loop (substitute (eval_loop e1) x e2)
     | Letrec_e (x,e1,e2) -> 
         let e1_unwind = substitute (Letrec_e (x,e1,Var_e x)) x e1 in 
           eval_loop (Let_e (x,e1_unwind,e2))
 ;;     
+let rec eval2 e = eval_body eval2 e ;;                                     (* chiamata ricorsiva tramite parametri higher-order *)
 
-let rec eval2 e = eval_body eval2 e ;; (* chiamata ricorsiva tramite parametri higher-order *)
-
-(* 
-
-(* ciclo dell'interprete ricorsivo *)
-let rec eval (e : expr) (env : (string * int) list) : int =match e with
-      | CstI i -> i
-      | Var x  -> lookup env x 
-      | Let(x, erhs, ebody) -> 
-            let xval = eval erhs env in
-              let env1 = (x, xval) :: env in
-                eval ebody env1
-      | Prim("+", e1, e2) -> eval e1 env + eval e2 env
-      | Prim("*", e1, e2) -> eval e1 env * eval e2 env
-      | Prim("-", e1, e2) -> eval e1 env - eval e2 env
-      | Prim _            -> raise (Failure "unknown primitive") 
-;;
-
-let run e = eval e [] ;;
-
-*)
-
-(* Test: il fattoriale *)
+(* -------------------- TESTING ----------------------*)
 
 (* Body del fattoriale: fun n -> if n < 1 then 1 else n * fact (n - 1) *)
 let fact_body =
@@ -204,25 +190,58 @@ let fact_body =
                                        Constant_e (Int 1))))))
 ;;
 
-(* Chiamata: fact 4 *)
-let fact_call = FunCall_e (Var_e "fact", (Constant_e (Int 4))) ;;
-
-(* Definizione ricorsiva del fattoriale chiamato sul valore 4 *)
-let fact4 = Letrec_e ("fact", fact_body, fact_call) ;;
-
-(* Chiamata interprete *)
-eval fact4 ;;
+let fact_call = FunCall_e (Var_e "fact", (Constant_e (Int 4))) ;;        (* Chiamata: fact 4 *)
+let fact4 = Letrec_e ("fact", fact_body, fact_call) ;;                   (* Definizione ricorsiva del fattoriale chiamato sul valore 4 *)
+eval fact4 ;;                                                            (* Chiamata interprete *)
 
 (* Risultato: - : exp = Constant_e (Int 24) *)
 
+(* -------------------- TESTING ----------------------*)
+
 (* 
 
-(* Ciclo dell'interprete *)
-open List ;;
+let rec eval (e : expr) (env : (string * int) list) : int = match e with        (* Ciclo dell'interprete all'interno di un ambiente*)
+(* let rec eval (e : exp) (env : (variable * int) list) : int = match e with *)
+      | CstI i -> i
+      | Var x  -> lookup env x 
+      | Let(x, erhs, ebody) -> 
+            let xval = eval erhs env in
+              let env1 = (x, xval) :: env in
+                eval ebody env1
+    
+      (* oppure
+      | Op (e1, op, e2) -> 
+        let v1 = eval e1 env in
+          let v2 = eval e2 env in
+            eval_op v1 op v2
+      al posto dei successivi Prim
+      *)                
+      | Prim("+", e1, e2) -> eval e1 env + eval e2 env
+      | Prim("*", e1, e2) -> eval e1 env * eval e2 env
+      | Prim("-", e1, e2) -> eval e1 env - eval e2 env
+      | Prim _            -> raise (Failure "unknown primitive") 
+;;
 
-let rec teval (e : texpr) (renv : int list) : int = match e with      (* Environment list of integers *)
+(* -------------------- TESTING ----------------------*)
+let run e = eval e [] ;;
+let e1 = CstI 17 ;;
+let evale1 = eval e1 env ;;
+let ea = Op (CstI 3, Plus, Var "a");;
+let va = eval ea env ;;		                (* int 6 *)
+let ec = Op( CstI 3, Times, Var "c");;
+let vc = eval ec env ;;		                (* int 234 *)
+let e3 = Op(CstI 3, Plus, CstI 4);;
+let evale3 = eval e3 env ;;	                (* int 7 *)
+let e4 = Op(Op(Var "b", Times, CstI 9), Plus, Var "a");;
+let evale4 = eval e4 env ;;	                (* int 1002 *)
+
+(* -------------------- TESTING ----------------------*)
+
+(* oppure *)
+open List ;;
+let rec teval (e : texpr) (renv : int list) : int = match e with          (* Environment list of integers *)
       | TCstI i -> i
-      | TVar x  -> nth renv x                                         (*oppure List.nth renv x *)
+      | TVar x  -> nth renv x                                             (*oppure List.nth renv x *)
       | TLet(erhs, ebody) -> 
             let xval = teval erhs renv in
                let renv1 = xval :: renv  in
@@ -231,18 +250,18 @@ let rec teval (e : texpr) (renv : int list) : int = match e with      (* Environ
       (* oppure 
       | TOp (e1, op, e2) -> let v1 = teval e1 renv in let v2 = teval e2 renv in eval_op v1 op v2 
       senza dover riscrivere tutte le operazioni previste da operand come è stato fatto invece di seguito
-      *)
+      *)      
       | TPrim("+", e1, e2) -> teval e1 renv + teval e2 renv
       | TPrim("*", e1, e2) -> teval e1 renv * teval e2 renv
       | TPrim("-", e1, e2) -> teval e1 renv - teval e2 renv
       | TPrim _            -> failwith("unknown primitive") 
 ;;
 
+(* -------------------- TESTING ----------------------*)
 let e2 = Let("z", CstI 17, Prim("+", Let("z", CstI 22, Prim("*", CstI 100, Var "z")), Var "z")) ;;
 (* let expEx = Let("z", Cnst 17, Op(Let("z", Cnst 22, Op(Cnst 100, Times, Var "z")), Plus, Var "z")) ;; *)
 
-
 (* Correctness: eval e [] equals teval (tcomp e []) [] *)
+(* -------------------- TESTING ----------------------*)
 
 *)
-

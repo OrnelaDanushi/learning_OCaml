@@ -344,6 +344,132 @@ let makefun ((a:staticexp), (x:evalenv)) =
       | Funval of efun
       and efun = staticexp * (evalenv)
 
+(* non cambia niente rispetto al vecchio interprete
+c'è solamente staticexp invece di exp *)
+match top (continuation) with
+  | SExpr1(x) ->
+    pop(continuation)
+    push(SExpr2(x), continuation)
+    match x with
+      | Siszero(a) -> push(SExpr1(a), continuation) 
+      | Sequ(a, b) ->
+        push(SExpr1(a), continuation) 
+        push(SExpr1(b), continuation) 
+      | Smult(a, b) ->
+        push(SExpr1(a), continuation) 
+        push(SExpr1(b), continuation) 
+      | Splus(a, b) ->
+        push(SExpr1(a), continuation) 
+        push(SExpr1(b), continuation) 
+      | Sdiff(a, b) ->
+        push(SExpr1(a), continuation) 
+        push(SExpr1(b), continuation) 
+      | Sminus(a) -> push(SExpr1(a), continuation) 
+      | Set(a, b) ->
+        push(SExpr1(a), continuation) 
+        push(SExpr1(b), continuation) 
+      | Svel(a, b) ->
+        push(SExpr1(a), continuation) 
+        push(SExpr1(b), continuation) 
+      | Snon(a) -> push(SExpr1(a), continuation) 
+      | Sifthenelse(a, b, c) -> 
+        push(SExpr1(a), continuation) 
+        push(SExpr1(b), continuation) 
+        push(SExpr1(c), continuation) 
+      | SBind(e1, e2) -> push(SExpr1(e1), continuation)
+      | SAppl(a, b) ->
+        push(SExpr1(a), continuation) 
+        pushargs2(b, continuation) 
+      | _ -> ()
+
+  | Expr2(x) ->
+    pop(continuation)
+    match x with
+      | SUnbound -> push(Unbound, tempstack)
+      | SInt(n) -> push(Int(n), tempstack)     
+      | SBool(b) -> push(Bool(b), tempstack)
+      | Siszero(a) -> 
+        let arg = top(tempstack)
+        pop(tempstack)
+        push(iszero(arg), tempstack) 
+      | Sequ(a, b) ->
+        let firstarg = top(tempstack)
+        pop(tempstack)
+        let sndarg = top(tempstack)
+        pop(tempstack)      
+        push(equ(firstarg, sndarg), tempstack) 
+      | Smult(a, b) ->
+        let firstarg = top(tempstack)
+        pop(tempstack)
+        let sndarg = top(tempstack)
+        pop(tempstack)      
+        push(mult(firstarg, sndarg), tempstack) 
+      | Splus(a, b) ->
+        let firstarg = top(tempstack)
+        pop(tempstack)
+        let sndarg = top(tempstack)
+        pop(tempstack)      
+        push(plus(firstarg, sndarg), tempstack) 
+      | Sdiff(a, b) ->
+        let firstarg = top(tempstack)
+        pop(tempstack)
+        let sndarg = top(tempstack)
+        pop(tempstack)      
+        push(diff(firstarg, sndarg), tempstack) 
+      | Sminus(a) -> 
+        let arg = top(tempstack)
+        pop(tempstack)
+        push(minus(arg), tempstack) 
+      | Set(a, b) ->
+        let firstarg = top(tempstack)
+        pop(tempstack)
+        let sndarg = top(tempstack)
+        pop(tempstack)      
+        push(et(firstarg, sndarg), tempstack) 
+      | Svel(a, b) ->
+        let firstarg = top(tempstack)
+        pop(tempstack)
+        let sndarg = top(tempstack)
+        pop(tempstack)      
+        push(vel(firstarg, sndarg), tempstack) 
+      | Snon(a) -> 
+        let arg = top(tempstack)
+        pop(tempstack)
+        push(non(arg), tempstack) 
+      | Sifthenelse(a, b, c) -> 
+        let arg = top(tempstack)
+        pop(tempstack)
+        match arg with with
+          | Bool (bg) ->
+            if bg then
+              push(SExpr1(b), continuation)
+            else
+              push(SExpr1(c), continuation)
+          | _ -> failwith ("type error")
+
+      (* fino qui e' tutto come il vecchio interprete
+      ad eccezione delle staticexp *)
+
+  | Access(l, i) -> push(accessenv(rho, l, i), tempstack)
+    let accessenv ((x: evalenv), (l: int), (index: int)) = 
+      let l = ref(l)
+      let n = ref(x)
+      while !l > 0 do
+        n := access(slinkstack, !n)
+        l := !l - 1
+      Array.get (access(evalstack, !n)) index
+
+    (* qui non c'è Den(ide) ma Access(int, int)
+    non si esegue piu' una ricerca del nome nella pila degli ambienti,
+    ma accediamo direttamente
+    abbiamo eliminato un ciclo ed un confronto tra stringhe ad ogni iterazione del ciclo,
+      risparmiando anche nell strutture dati (la pila namestack è inutile)
+    scorriamo la catena statica con slinkstack fino all'ambiente dove si trova il valore cercato
+    dopo con Array.get restituiamo l'eval che corrispondeva all'ide tradotta
+    *)
+ | SFun(a) ->    
+  
+
 (*
 Eseguire il programma con l'interprete sui costrutti solo dell'ambiente (ignorando tutti gli altri), 
   e cioè che guardi solo i nomi (namestack) e link (slinkstack) statici.

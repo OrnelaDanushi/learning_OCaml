@@ -1,33 +1,31 @@
-(* Imp-Operazionale.ml
-Il file Imp-Operazionale.ml contiene la sintassi di un semplice linguaggio imperativo (con assegnamento, condizionale e while) e la sua semantica operazionale.	*)
+(* sintassi di un linguaggio imperativo (assegnamento, condizionale e while) e la sua semantica operazionale *)
 
-(* Ambiente e operazioni *)
+(* ambiente e operazioni *)
 
 type 't env = string -> 't ;;
 
 exception WrongBindlist ;;
 
 let emptyenv(x) = function (y:string) -> x ;;
-(* oppure let emptyenv (x)(y:string) =  x;; *)
+(* let emptyenv (x)(y:string) =  x;; *)
 
 let applyenv(x,(y:string)) = x y ;;
 
 let bind((r: 'a env),(l:string),(e:'a)) = function lu -> if lu = l then e else applyenv(r,lu) ;;
-(* oppure 
-let bind ((r: 'a env),(l:string),(e:'a))(lu) = if lu = l then e else applyenv(r,lu) ;;  *)
+(* let bind ((r: 'a env),(l:string),(e:'a))(lu) = if lu = l then e else applyenv(r,lu) ;;  *)
 
 let rec bindlist(r, il, el) = match (il,el) with
 | ([],[]) -> r
 	| i::il1, e::el1 -> bindlist (bind(r, i, e), il1, el1)
 	| _ -> raise WrongBindlist ;;
 
-(* Memoria e operazioni *)
+(* memoria e operazioni *)
 
 type loc = int ;;
 
 type 't store = loc -> 't ;;
 
-let (newloc,initloc) =
+let (newloc, initloc) =
 let count = ref(-1) in
           		(fun () -> count := !count +1; !count), (fun () -> count := -1) ;;
 
@@ -39,15 +37,24 @@ let allocate((r: 'a store),(e:'a)) = let l = newloc() in
 (l, function lu -> if lu = l then e else applystore(r,lu)) ;;
 
 let update((r: 'a store),(l:loc),(e:'a)) = function lu -> if lu = l then e else applystore(r,lu) ;;   
-(* oppure 
-let update((r: 'a store),(l:loc),(e:'a))(lu:loc) = if lu=l then e else applystore(r,lu);; *)
+(* let update((r: 'a store),(l:loc),(e:'a))(lu:loc) = if lu=l then e else applystore(r,lu);; *)
 
 (* Domini Sintattici *)
 
 type ide = string ;;
 
-type exp =  Eint of int		| Ebool of bool		| Den of ide		| Prod of exp * exp	| Sum of exp * exp 	| Diff of exp * exp 	| Eq of exp * exp 	| Not of exp
-      	| Ifthenelse of exp * exp * exp			| Val of exp		| Newloc of exp
+type exp =  
+	| Eint of int		
+ 	| Ebool of bool		
+  	| Den of ide		
+   	| Prod of exp * exp	
+    	| Sum of exp * exp 	
+     	| Diff of exp * exp 	
+      	| Eq of exp * exp 	
+       	| Not of exp
+      	| Ifthenelse of exp * exp * exp			
+       	| Val of exp		
+	| Newloc of exp
 and com = 
        	| Assign of exp * exp
 	| Cifthenelse of exp * com list * com list
@@ -509,9 +516,4 @@ applystore(st4, 3);;
  - : mval = Mint 2
  - : mval = Mint 7
  - : mval = Undefined *)
-
-
-
-
-
 

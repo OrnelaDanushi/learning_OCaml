@@ -329,8 +329,22 @@ duplicati i metodi
     hanno un numero diverso di parametri, 
     nel traduttore ci sono gli identificatori, nell'interprete no
   pushargs, getargs (prendono exp nel traduttore, staticexp nell'interprete)
-il dominio efun adesso chiude staticexp
+il dominio efun adesso usa staticexp per le chiusure lessicali
+  | SFun(a) -> push(makefun(SFun(a), rho), tempstack)
+*)
 
+let makefun ((a:staticexp), (x:evalenv)) =
+  match a with 
+    | SFun(aa) -> Funval(a, x)
+    | _ -> failwith ("Non-functional object")
+    and eval = 
+      | Int of int
+      | Bool of bool
+      | Unbound
+      | Funval of efun
+      and efun = staticexp * (evalenv)
+
+(*
 Eseguire il programma con l'interprete sui costrutti solo dell'ambiente (ignorando tutti gli altri), 
   e cioè che guardi solo i nomi (namestack) e link (slinkstack) statici.
 Costruire un nuovo ambiente locale seguendo la struttura statica (Let, Fun, Rec)

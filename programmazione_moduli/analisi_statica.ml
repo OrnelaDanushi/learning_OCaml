@@ -1,7 +1,7 @@
 (* TRADUZIONE DEI NOMI TRAMITE LA STRUTTURA STATICA
 
 Problema 
-Dato il programma, per tradurre una specifica occorrenza di Den ide occorre:
+Dato il programma, per tradurre una specifica occorrenza di Den(ide) occorre:
 - identificare la struttura di annidamento,
 - identificare il blocco o funzione dove occorre l'associazione per ide (o scoprire subito che non c'è)
   e vedere in che posizione è ide nell'ambiente,
@@ -51,10 +51,8 @@ type staticexp =             (* nuovo interprete *)
   | SAppl of staticexp * staticexp list
   | SRec of staticexp
 
-(*
-E' necessario ricostruire la struttura degli ambienti tramite newframes
-  per tradurre correttamente i Den ide in accessi.
-*)
+(* E' necessario ricostruire la struttura degli ambienti tramite newframes
+  per tradurre correttamente i Den ide in accessi. *)
 
 let newframes(e, rho) = 
   let cframe = emptystack(cframesize(e), Expr1(e))
@@ -77,10 +75,8 @@ let pushargs2 ((b: staticexp list), continuation) = ...
 let getargs2 ((b: staticexp list), (tempstack: eval stack)) = ...
 
 
-(*
-Il traduttore valuta parzialmente il programma in input, 
-  e produce un altro programma con tutti i nomi sostituiti dall'offset seguendo la catena statica.
-*)
+(* Il traduttore valuta parzialmente il programma in input, 
+  e produce un altro programma con tutti i nomi sostituiti dall'offset seguendo la catena statica *)
 
 match top (continuation) with
   | Expr1(x) ->
@@ -119,20 +115,19 @@ match top (continuation) with
       | Let(i, e1, e2) ->
         push(Expr1(e1), continuation) 
           (* prima di chiudere la funzione in una espressione statica
-          valutare il corpo in un nuovo frame*)
+          valutare il corpo in un nuovo frame *)
         newframes(e2,bind(rho, i, SUnbound)) 
           (* a tempo di traduzione non c'è bisogno dei valori memorizzati nella pila evalstack
           nel vecchio interprete si può costruire il nuovo frame con il binding solo dopo aver
             valutato Expr(e1), cioè nella seconda fase della traduzione
           nel nuovo interprete, quindi qui, si anticipa alla prima fase la creazione del frame,
-            inserendo nel campo valore un SUnbound
-          *)
+            inserendo nel campo valore un SUnbound *)
       | Fun(i, a) ->
         let foo = List.init (List.length i) (fun _ -> Unbound)
-          (*ignoriamo i valori dei parametri, usiamo una lista dummy*)
+          (* ignoriamo i valori dei parametri, usiamo una lista dummy *)
         newframes(a,bindlist(rho, i, foo))
-          (*prima di chiudere la funzione in una espressione statica
-          valutare il corpo in un nuovo frame*)
+          (* prima di chiudere la funzione in una espressione statica
+          valutare il corpo in un nuovo frame *)
       | Rec(f, e) ->
         newframes(e,bind(rho, f, Unbound))
           (* i costrutti Rec sono sempre nella forma 
@@ -141,26 +136,23 @@ match top (continuation) with
           Successivamente il costrutto Fun costruira' un nuovo frame 
             contenente i parametri della funzione.
           Prima di fare la chiusura per il costrutto Rec (verra' fatto nel ramo Exp2)
-            bisogna valutare il corpo per effettuare eventuali traduzioni.
-          *)
+            bisogna valutare il corpo per effettuare eventuali traduzioni. *)
+            
   | Expr2(x) ->
     pop(continuation)
     match x with
-      | Eint(n) -> push(SInt(n), tempstack)     (* adesso tempstack e' una pila di stacexp*)
+      | Eint(n) -> push(SInt(n), tempstack)     (* adesso tempstack e' una pila di stacexp *)
       | Ebool(b) -> push(SBool(b), tempstack)
       | Den(i) -> 
-        (*
-        push(applyenv(rho, i), tempstack)  ----> tradotto in Access(int, int) 
+        (* push(applyenv(rho, i), tempstack)  ----> tradotto in Access(int, int) 
         la applyenv del vecchio interprete resituisce il valore alla locazione di ide
         nel caso del problema, interessa memorizzare i due offset accesses ed index
         non restituiamo percio' un eval ma un staticexp Access(x, y)
-        dato che non interessa il valore memorizzato, 
-          la pila evalstack risulta inutile
+        dato che non interessa il valore memorizzato, la pila evalstack risulta inutile
         restituire una chiusura lessicale contenente gli offset nella pila 
           dell'ambiente per prelevare il valore a runtime
         il nuovo interprete non ha bisogno di effettuare la ricerca per nome,
-          la pila namestack diventa inutile
-        *)
+          la pila namestack diventa inutile *)
         
         let applyenv ((x: evalenv), (y: ide)) = 
           let n = ref(x)
@@ -185,6 +177,7 @@ match top (continuation) with
               Access(!accesses, !index)
             else
               SUnbound
+              
       | Iszero(a) -> 
         let arg = top(tempstack)
         pop(tempstack)
@@ -330,19 +323,7 @@ duplicati i metodi
     nel traduttore ci sono gli identificatori, nell'interprete no
   pushargs, getargs (prendono exp nel traduttore, staticexp nell'interprete)
 il dominio efun adesso usa staticexp per le chiusure lessicali
-  | SFun(a) -> push(makefun(SFun(a), rho), tempstack)
 *)
-
-let makefun ((a:staticexp), (x:evalenv)) =
-  match a with 
-    | SFun(aa) -> Funval(a, x)
-    | _ -> failwith ("Non-functional object")
-    and eval = 
-      | Int of int
-      | Bool of bool
-      | Unbound
-      | Funval of efun
-      and efun = staticexp * (evalenv)
 
 (* non cambia niente rispetto al vecchio interprete
 c'è solamente staticexp invece di exp *)
@@ -467,9 +448,42 @@ match top (continuation) with
     scorriamo la catena statica con slinkstack fino all'ambiente dove si trova il valore cercato
     dopo con Array.get restituiamo l'eval che corrispondeva all'ide tradotta
     *)
- | SFun(a) ->    
-  
+  | SFun(a) -> push(makefun(SFun(a), rho), tempstack)
+    let makefun ((a: staticexp), (x: evalenv)) =
+    match a with 
+      | SFun(aa) -> Funval(a, x)
+      | _ -> failwith ("Non-functional object")
+      and eval = 
+        | Int of int
+        | Bool of bool
+        | Unbound
+        | Funval of efun
+        and efun = staticexp * (evalenv)
 
+  | SRec(e) -> push(makefunrec(e, rho), tempstack)
+    let makefunrec ((a: staticexp), (x: evalenv))
+      makefun(a, ((lungh(namestack) + 1): evalenv))
+
+  | SBind(e1, e2) ->
+    let arg = top(tempstack)
+    pop(tempstack)
+    newframes(e2, bind2(rho, arg))
+    
+  | SAppl(a, b) ->
+    let firstarg = top(tempstack)
+    pop(tempstack)
+    let sndarg = getargs2(b, tempstack)
+    applyfun(firstarg, sndarg)
+  
+    let applyfun ((ev1: eval), (ev2: eval list)) = 
+      match ev1 with
+        | Funval(SFun(aa), r) -> newframes(aa, bindlist2(r, ev2))
+        | _ -> failwith ("...")
+  (* rispetto al vecchio interprete makefun applyfun e makefunrec 
+    prendono delle staticexp invece di exp
+    scompaiono gli ide *)
+
+        
 (*
 Eseguire il programma con l'interprete sui costrutti solo dell'ambiente (ignorando tutti gli altri), 
   e cioè che guardi solo i nomi (namestack) e link (slinkstack) statici.

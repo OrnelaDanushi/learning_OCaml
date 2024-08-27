@@ -1,17 +1,12 @@
-http://caml.inria.fr/pub/docs/manual-ocaml-4.00/manual023.html 
-
-(* Interprete di un semplice linguaggio funzionale *)
+(* http://caml.inria.fr/pub/docs/manual-ocaml-4.00/manual023.html  *)
 
 type variable = string ;;
 
 type constant = Int of int | Bool of bool ;;
 
-type operand = 
-	| Plus | Minus | Times | Div | LessThan | LessThanEq | MoreThan | MoreThanEq ;;
+type operand = Plus | Minus | Times | Div | LessThan | LessThanEq | MoreThan | MoreThanEq ;;
 
-(* Le espressioni *)
-
-type exp = 
+type exp = 						(* espressioni *)
   | Constant_e of constant
   | Op_e of exp * operand * exp
   | Var_e of variable
@@ -19,46 +14,31 @@ type exp =
   | Fun_e of variable * exp
   | FunCall_e of exp * exp
   | Let_e of variable * exp * exp
-  | Letrec_e of variable * exp * exp
-;;
+  | Letrec_e of variable * exp * exp ;;
 
 (* Funzioni del run-time *)
 
-(* casi possibili di runtime exception *)
-
-exception UnboundVariable of variable ;;
+exception UnboundVariable of variable ;;		(* casi possibili di runtime exception *)
 exception BadApplication of exp ;;
 exception BadIf of exp ;;
 exception BadOp of exp * operand * exp ;;
 
-(* Decodifica delle operazioni di base *)
-
-let eval_op (v1:exp) (op:operand) (v2:exp) : exp =
+let eval_op (v1:exp) (op:operand) (v2:exp) : exp = 	(* decodifica delle operazioni di base *)
   match v1, op, v2 with 
-    | Constant_e (Int i), Plus, Constant_e (Int j) -> 
-        Constant_e (Int (i+j))
-    | Constant_e (Int i), Minus, Constant_e (Int j) -> 
-        Constant_e (Int (i-j))
-    | Constant_e (Int i), Times, Constant_e (Int j) -> 
-        Constant_e (Int (i*j))
-    | Constant_e (Int i), Div, Constant_e (Int j) -> 
-        Constant_e (Int (i/j))
-    | Constant_e (Int i), LessThan, Constant_e (Int j) -> 
-        Constant_e (Bool (i<j))
-    | Constant_e (Int i), LessThanEq, Constant_e (Int j) -> 
-        Constant_e (Bool (i<=j))
-| Constant_e (Int i), MoreThan, Constant_e (Int j) -> 
-        Constant_e (Bool (i>j))
-    | Constant_e (Int i), MoreThanEq, Constant_e (Int j) -> 
-        Constant_e (Bool (i>=j))
-    | _, _, _ -> raise (BadOp (v1,op,v2))
-;;
+    | Constant_e (Int i), Plus, Constant_e (Int j) ->		Constant_e (Int (i+j))
+    | Constant_e (Int i), Minus, Constant_e (Int j) ->  	Constant_e (Int (i-j))
+    | Constant_e (Int i), Times, Constant_e (Int j) ->  	Constant_e (Int (i*j))
+    | Constant_e (Int i), Div, Constant_e (Int j) ->    	Constant_e (Int (i/j))
+    | Constant_e (Int i), LessThan, Constant_e (Int j) ->	Constant_e (Bool (i<j))
+    | Constant_e (Int i), LessThanEq, Constant_e (Int j) ->     Constant_e (Bool (i<=j))
+    | Constant_e (Int i), MoreThan, Constant_e (Int j) -> 	Constant_e (Bool (i>j))
+    | Constant_e (Int i), MoreThanEq, Constant_e (Int j) ->     Constant_e (Bool (i>=j))
+    | _, _, _ -> raise (BadOp (v1,op,v2)) ;;
 
 (* Funzione di sostituzione *)
-(* Notare uso di una funzione ricorsiva ausiliaria *)
 
-let substitute (v:exp) (x:variable) (e:exp) : exp = 
-  let rec subst (e:exp) : exp = 
+let substitute (v:exp) (x:variable) (e:exp) : exp =  
+  let rec subst (e:exp) : exp = 				(* notare uso di una funzione ricorsiva ausiliaria *)
     match e with 
       | Var_e y -> if x = y then v else e
       | Constant_e _ -> e
@@ -66,16 +46,13 @@ let substitute (v:exp) (x:variable) (e:exp) : exp =
       | If_e (e1,e2,e3) -> If_e (subst e1,subst e2,subst e3)
       | FunCall_e (e1,e2) -> FunCall_e (subst e1,subst e2)
       | Fun_e (y,e1) -> if x = y then e else Fun_e (y, subst e1)
-      | Let_e (y,e1,e2) ->
-          Let_e (y,subst e1,if x = y then e2 else subst e2)
+      | Let_e (y,e1,e2) -> Let_e (y,subst e1,if x = y then e2 else subst e2)
       | Letrec_e (y,e1,e2) ->
           if x = y then Letrec_e (y,e1,e2)
           else Letrec_e (y,subst e1,subst e2)
-  in subst e
-;;
+  in subst e ;;
 
 (* Ciclo dell'interprete *)
-(* Notare uso della sostituzione per fare unwind della ricorsione *)
 
 let rec eval (e:exp) : exp =
   match e with
@@ -92,7 +69,7 @@ let rec eval (e:exp) : exp =
          | v1 -> raise (BadIf v1))
     | Let_e (x,e1,e2) -> eval (substitute (eval e1) x e2)
     | Var_e x -> raise (UnboundVariable x)
-    | Letrec_e (x,e1,e2) -> 
+    | Letrec_e (x,e1,e2) -> 	(* Notare uso della sostituzione per fare unwind della ricorsione *)
         let e1_unwind = substitute (Letrec_e (x,e1,Var_e x)) x e1 in 
           eval (Let_e (x,e1_unwind,e2))
     | FunCall_e (e1,e2) ->
@@ -124,7 +101,3 @@ let fact4 = Letrec_e ("fact", fact_body, fact_call) ;;
 eval fact4 ;;
 
 (* Risultato: - : exp = Constant_e (Int 24) *)
-
-
-
-

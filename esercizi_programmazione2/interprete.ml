@@ -18,8 +18,8 @@ let rec lookup env x = match env with
 
 type exp = 						                              (* espressioni *)
   | Constant_e of constant
-  | Op_e of exp * operand * exp
   | Var_e of variable
+  | Op_e of exp * operand * exp
   | If_e of exp * exp * exp
   | Fun_e of variable * exp
   | FunCall_e of exp * exp
@@ -29,6 +29,12 @@ type exp = 						                              (* espressioni *)
 (*
 
 (* interprete con codice intermedio ----------------------------------------- *)
+
+let rec getindex (env : variable list)(x : variable) : int = match env with     (* Calcolo dell'indice *)
+    	| [] -> failwith("Variable not found")
+    	| y::yr -> if x=y then 0 else 1 + getindex yr x 
+;;
+
 type expr =                                         (* AST *)
   | CstI of int
   | Var of string
@@ -36,11 +42,21 @@ type expr =                                         (* AST *)
   | Prim of string * expr * expr
 ;;
 
-type texpr =                  (* target expressions *)
+type texpr =                                          (* espressioni target *)
   | TCstI of int
-  | TVar of int               (* index into runtime environment *)
-  | TLet of texpr * texpr     (* erhs and ebody *)
+  | TVar of int                                       (* indice dell'ambiente a runtime *)
+  (* | TOp of texpr * operand * texpr   *)
+  | TLet of texpr * texpr                             (* erhs and ebody *)
   | TPrim of string * texpr * texpr 
+;;
+
+let rec tcomp (e:expr) (cenv : string list) : texpr = match e with          (* IR Optimization *)
+      | CstI i -> TCstI i
+      | Var x  -> TVar (getindex cenv x)
+      | Let(x, erhs, ebody) -> 
+            let cenv1 = x :: cenv in
+              TLet(tcomp erhs cenv, tcomp ebody cenv1)
+      | Prim(ope, e1, e2) -> TPrim(ope, tcomp e1 cenv, tcomp e2 cenv) 
 ;;
 (* ----------------------------------------------------------------------- *)
 
@@ -59,17 +75,30 @@ exception BadApplication of exp ;;
 exception BadIf of exp ;;
 exception BadOp of exp * operand * exp ;;
 
-let eval_op (v1:exp) (op:operand) (v2:exp) : exp = 	(* decodifica delle operazioni di base *)
-  match v1, op, v2 with 
+(* decodifica delle operazioni di base *)
+let eval_op (v1:exp) (op:operand) (v2:exp) : exp = match v1, op, v2 with 
     | Constant_e (Int i), Plus, Constant_e (Int j) ->		Constant_e (Int (i+j))
     | Constant_e (Int i), Minus, Constant_e (Int j) ->  	Constant_e (Int (i-j))
     | Constant_e (Int i), Times, Constant_e (Int j) ->  	Constant_e (Int (i*j))
     | Constant_e (Int i), Div, Constant_e (Int j) ->    	Constant_e (Int (i/j))
     | Constant_e (Int i), LessThan, Constant_e (Int j) ->	Constant_e (Bool (i<j))
-    | Constant_e (Int i), LessThanEq, Constant_e (Int j) ->     Constant_e (Bool (i<=j))
+    | Constant_e (Int i), LessThanEq, Constant_e (Int j) -> Constant_e (Bool (i<=j))
     | Constant_e (Int i), MoreThan, Constant_e (Int j) -> 	Constant_e (Bool (i>j))
-    | Constant_e (Int i), MoreThanEq, Constant_e (Int j) ->     Constant_e (Bool (i>=j))
+    | Constant_e (Int i), MoreThanEq, Constant_e (Int j) -> Constant_e (Bool (i>=j))
     | _, _, _ -> raise (BadOp (v1,op,v2)) ;;
+
+(* oppure
+let eval_op (v1: int)(op: operand)(v2: int) : int = match v1, op, v2 with    
+    | _, Plus, _ -> v1 + v2 
+    | _, Minus, _ -> v1 - v2 
+    | _, Times, _ -> v1 * v2 
+    | _, Div, _ -> v1 / v2 
+    | _, LessThan, _ -> v1 < v2 
+    | _, LessThanEq, _ -> v1 <= v2 
+    | _, MoreThan, _ -> v1 > v2 
+    | _, MoreThanEq, _ -> v1 >= v2 
+    | _, _, _ -> raise (BadOp (v1, op, v2)) ;;
+*)
 
 (* Funzione di sostituzione *)
 
@@ -140,7 +169,7 @@ let eval_body (eval_loop:exp->exp) (e:exp) : exp =
           eval_loop (Let_e (x,e1_unwind,e2))
 ;;     
 
-let rec eval2 e = eval_body eval e ;; (* chiamata ricorsiva tramite parametri higher-order *)
+let rec eval2 e = eval_body eval2 e ;; (* chiamata ricorsiva tramite parametri higher-order *)
 
 (* 
 
@@ -188,28 +217,21 @@ eval fact4 ;;
 
 (* 
 
-let rec getindex env x = match env with                              (* index computation *)
-    | [] -> failwith("Variable not found")
-    | y::yr -> if x=y then 0 else 1 + getindex yr x 
-;;
-
-let rec tcomp e (cenv : string list) : texpr = match e with          (* IR Optimization *)
-      | CstI i -> TCstI i
-      | Var x  -> TVar (getindex cenv x)
-      | Let(x, erhs, ebody) -> 
-            let cenv1 = x :: cenv in
-              TLet(tcomp erhs cenv, tcomp ebody cenv1)
-      | Prim(ope, e1, e2) -> TPrim(ope, tcomp e1 cenv, tcomp e2 cenv) 
-;;
-
+(* Ciclo dell'interprete *)
 open List ;;
+
 let rec teval (e : texpr) (renv : int list) : int = match e with      (* Environment list of integers *)
       | TCstI i -> i
-      | TVar x  -> nth renv x
+      | TVar x  -> nth renv x                                         (*oppure List.nth renv x *)
       | TLet(erhs, ebody) -> 
             let xval = teval erhs renv in
                let renv1 = xval :: renv  in
                   teval ebody renv1
+
+      (* oppure 
+      | TOp (e1, op, e2) -> let v1 = teval e1 renv in let v2 = teval e2 renv in eval_op v1 op v2 
+      senza dover riscrivere tutte le operazioni previste da operand come è stato fatto invece di seguito
+      *)
       | TPrim("+", e1, e2) -> teval e1 renv + teval e2 renv
       | TPrim("*", e1, e2) -> teval e1 renv * teval e2 renv
       | TPrim("-", e1, e2) -> teval e1 renv - teval e2 renv
@@ -217,7 +239,10 @@ let rec teval (e : texpr) (renv : int list) : int = match e with      (* Environ
 ;;
 
 let e2 = Let("z", CstI 17, Prim("+", Let("z", CstI 22, Prim("*", CstI 100, Var "z")), Var "z")) ;;
+(* let expEx = Let("z", Cnst 17, Op(Let("z", Cnst 22, Op(Cnst 100, Times, Var "z")), Plus, Var "z")) ;; *)
+
 
 (* Correctness: eval e [] equals teval (tcomp e []) [] *)
 
 *)
+

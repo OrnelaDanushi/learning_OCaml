@@ -1,32 +1,30 @@
-(* Gli operandi *)
 
-type operand = 
-| Plus | Minus | Times | Div | LessThan | LessThanEq | MoreThan | MoreThanEq ;;
+type operand = Plus | Minus | Times | Div | LessThan | LessThanEq | MoreThan | MoreThanEq ;;
 
-(* Le espressioni *)
-
-type exp = 
+type exp = 						(* espressioni *)
   | Int_e of int
   | Bool_e of bool
   | Op_e of exp * operand * exp
   | Var_e of string
-(*  | Somma of exp * exp
+  (*  le seguenti sono commentate perche' incluse in Fun 
+  | Somma of exp * exp
   | Differenza of exp * exp
   | Prodotto of exp * exp
-  | Divisione of exp * exp	*)
+  | Divisione of exp * exp	
+  *)
   | Minore of exp * exp
   | MinoreUguale of exp * exp
   | Maggiore of exp * exp
   | MaggioreUguale of exp * exp
   | Uguaglianza of exp * exp
   | IsZero of exp
-  | If_e of exp * exp * exp		(* IfThenElse_e … *)
+  | If_e of exp * exp * exp				(* IfThenElse_e … *)
   | Fun_e of string * exp
   | FunCall_e of exp * exp
-  | Let_e of string * exp * exp 		(* Modifica ambiente *)
+  | Let_e of string * exp * exp 			(* Modifica ambiente *)
   | Letrec_e of string * exp * exp
-  | Fun of (string list) * exp		(* Astrazione di funzione *)
-  | Appl of exp * (exp list)		(* Applicazione di funzione *)
+  | Fun of (string list) * exp				(* Astrazione di funzione *)
+  | Appl of exp * (exp list)				(* Applicazione di funzione *)
   | Not_e of exp 
   | And_e of exp * exp
   | Or_e of exp * exp
@@ -35,22 +33,14 @@ type exp =
   | Select of exp * string
 ;;
 
-
-
 (* Funzioni del run-time *)
 
-(* casi possibili di runtime exception *)
-
-exception UnboundVariable of string ;;
+exception UnboundVariable of string ;;			(* casi possibili di runtime exception *)
 exception BadApplication of exp ;;
 exception BadIf of exp ;;
 exception BadOp of exp * operand * exp ;;
 
-
-
-(* Decodifica delle operazioni di base *)
-
-let eval_op (v1:exp) (op:operand) (v2:exp) : exp = match v1, op, v2 with 
+let eval_op (v1:exp) (op:operand) (v2:exp) : exp = match v1, op, v2 with  (* Decodifica delle operazioni di base *)
     | Int_e i, Plus, Int_e j -> Int_e (i+j)
     | Int_e i, Minus, Int_e j -> Int_e (i-j)
     | Int_e i, Times, Int_e j -> Int_e (i*j)
@@ -59,11 +49,9 @@ let eval_op (v1:exp) (op:operand) (v2:exp) : exp = match v1, op, v2 with
     | Int_e i, LessThanEq, Int_e j -> Bool_e (i<=j)
     | Int_e i, MoreThan, Int_e j -> Bool_e (i>j)
     | Int_e i, MoreThanEq, Int_e j -> Bool_e (i>=j)   
-    | _, _, _ -> raise (BadOp (v1,op,v2))
-;;
+    | _, _, _ -> raise (BadOp (v1,op,v2)) ;;
 
-
-(* Test di alcune operazioni di base per ogni operando previsto*)
+(* TEST di alcune operazioni di base per ogni operando previsto*)
 eval_op (Int_e 3)(Plus)(Int_e 4) ;;
 eval_op (Int_e 3)(Minus)(Int_e 4) ;;
 eval_op (Int_e 3)(Times)(Int_e 4) ;;
@@ -72,12 +60,10 @@ eval_op (Int_e 3)(LessThan)(Int_e 4) ;;
 eval_op (Int_e 3)(LessThanEq)(Int_e 4) ;;
 eval_op (Int_e 3)(MoreThan)(Int_e 4) ;;
 eval_op (Int_e 3)(MoreThanEq)(Int_e 4) ;;
+(* --- *)
 
-
-(* Funzione di sostituzione *)
-(* Notare uso di una funzione ricorsiva ausiliaria *)
-
-let substitute (v:exp) (x:string) (e:exp) : exp =   let rec subst (e:exp) : exp =  match e with 
+let substitute (v:exp) (x:string) (e:exp) : exp =   			(* Funzione di sostituzione *)
+  let rec subst (e:exp) : exp =  match e with 				(* uso di funzione ricorsiva ausiliaria *)
       | Var_e y -> if x = y then v else e
       | Int_e _ -> e
       | Bool_e _ -> e
@@ -90,32 +76,25 @@ let substitute (v:exp) (x:string) (e:exp) : exp =   let rec subst (e:exp) : exp 
   in subst e
 ;;
 
-
-(* Funzione di scansione e ricerca dei tipi Record *)
-let rec lookupRecord body s = (match body with
+let rec lookupRecord body s = (match body with				(* Funzione di scansione e ricerca dei tipi Record *)
 	| [] -> failwith ("Not found")
 	| ( ss,v )::t -> if s=ss then v else lookupRecord t s	)
 ;;
 
-(* NON FUNZIONA, eval non va bene perchè definita dopo, provo con eval_op e va modificata anche nell’eval !!!! *)
-(* Funzione di valutazione dei tipi Record *)
-let rec evalRecord body = match body with
+let rec evalRecord body = match body with				(* Funzione di valutazione dei tipi Record *)
 	| []->[]
 	| (s,e)::t -> (s, eval_op e)::evalRecord t
 ;;
 
-
-(* Ciclo dell'interprete *)
-(* Notare uso della sostituzione per fare unwind della ricorsione *)
-
-let rec eval (e:exp) : exp = match e with
+let rec eval (e:exp) : exp = match e with				(* Ciclo dell'interprete *)
     | Var_e x -> raise (UnboundVariable x)
     | Int_e _ -> e
     | Bool_e _ -> e
     | Fun_e _ -> e
-    | Op_e (e1,op,e2) -> let v1 = eval e1 in
-          			      let v2 = eval e2 in
-            			eval_op v1 op v2
+    | Op_e (e1,op,e2) -> 
+    	let v1 = eval e1 in
+     		let v2 = eval e2 in
+        		eval_op v1 op v2
     | If_e (e1,e2,e3) -> (match eval e1 with
          | Bool_e true -> eval e2
          | Bool_e false -> eval e3
@@ -124,8 +103,11 @@ let rec eval (e:exp) : exp = match e with
            | Fun_e (x, e3) -> eval (substitute (eval e2) x e3)
            | v -> raise (BadApplication v) )
     | Let_e (x,e1,e2) -> eval (substitute (eval e1) x e2)
-    | Letrec_e (x,e1,e2) -> let e1_unwind = substitute (Letrec_e (x,e1,Var_e x)) x e1 in 
-          				eval (Let_e (x,e1_unwind,e2))
+    | Letrec_e (x,e1,e2) -> 
+    	let e1_unwind = substitute (Letrec_e (x,e1,Var_e x)) x e1 in 
+          	eval (Let_e (x,e1_unwind,e2))
+	      	(* uso della funzione di sostituzione per fare unwind della ricorsione *)
+
 (*
     | Record (body) -> Record (evalRecord body)
     | Select (e, s) -> ( match eval e with
@@ -133,10 +115,7 @@ let rec eval (e:exp) : exp = match e with
 | _ -> raise TypeMismatch  )	*)
 ;;
 
-
-(* Interprete di espressioni logiche *)
-
-let rec evalLogica (e:exp) :exp = match e with
+let rec evalLogica (e:exp) :exp = match e with					(* Interprete di espressioni logiche *)
 	| Bool_e true -> Bool_e true
 	| Bool_e false -> Bool_e false
 	| Not_e (e1) -> (match evalLogica e1 with
@@ -161,38 +140,31 @@ let rec evalLogica (e:exp) :exp = match e with
 
 (* Interprete per espressioni intere con il loro ambiente *)
 
-(* L’ambiente vuoto *)
-let emptyenv = [] ;;
+let emptyenv = [] ;;						(* ambiente vuoto *)
 
-(* scansiona la lista fino a che non trova l’elemento x *)
-let rec lookup env x = match env with
+let rec lookup env x = match env with				(* scansiona la lista env fino a che non trova l’elemento x *)
 	| [] -> failwith ("Not found")
 	| (y, v)::r -> if x=y then v else lookup r x ;;
 
 let rec evalamb (e:exp)(env:(string*int)list) :int = match e with
-| Var_e x -> lookup env x
+	| Var_e x -> lookup env x
     	| Int_e i -> i
-| Let_e (x, erhs, ebody) -> let xval = evalamb erhs env in 
-let env1 = (x, xval) :: env in 
-evalamb ebody env1
+	| Let_e (x, erhs, ebody) -> 
+ 		let xval = evalamb erhs env in 
+			let env1 = (x, xval) :: env in 
+				evalamb ebody env1
 	| Op_e (e1, Plus,e2) -> ( evalamb e1 env) + ( evalamb e2 env)
 	| Op_e (e1, Minus,e2) -> ( evalamb e1 env) - ( evalamb e2 env)
 	| Op_e (e1, Times,e2) -> ( evalamb e1 env) * ( evalamb e2 env)
 	| Op_e (e1, Div,e2) -> ( evalamb e1 env) / ( evalamb e2 env)
 	| Op_e _ -> failwith ("Unknown Operand")
-(* | Somma(e1,e2) -> (evalamb e1 env) + (evalamb e2 env)
-| Differenza(e1,e2) -> (evalamb e1 env) - (evalamb e2 env)
-| Prodotto(e1,e2) -> (evalamb e1 env) * (evalamb e2 env)
-| Divisione(e1,e2) -> (evalamb e1 env) / (evalamb e2 env) *)
 ;;
 
 
-(* Espressioni target *)
-
-type texp = 		 (* target expressions *)
-| TVar of int (* indice a run time *) 	(* index into runtime environment *)
-| TLet of int * texp * texp (* erhs e ebody *) 
-| TOp of texp * operand * texp
+type texp = 				(* Espressioni target *)
+	| TVar of int 			(* indice a run time *) 	
+	| TLet of int * texp * texp 	(* erhs e ebody *) 
+	| TOp of texp * operand * texp
 ;;	
 
 (* Map variable name to variable index at compile-time *)

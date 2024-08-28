@@ -47,5 +47,14 @@ let int_of_giorno g = match g with
    | Dom -> 7 ;;
 
 
+let n = 5 ;;						(* val n : int = 5 *)
 
+let h = fun x -> n + x ;;				(* val h: int -> int = <fun> *)
 
+let rec f p n =
+	let g = fun y -> n * y in
+		if n = 0 then p 1
+		else if n > 1 then f g (n-1)
+			else f p (n-1);;
+f h 2;;							(* val f: (int -> int) * int -> int = <fun> *)
+(* restituisce -: int = 2*)

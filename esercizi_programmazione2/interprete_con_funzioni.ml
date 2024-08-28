@@ -100,7 +100,7 @@ env : string -> int
 fenv : string -> (string * exp)
 *)
 
-(* valutazione di espressioni  NB: booleani rappresentati da 0 e 1*)
+(* valutazione a runtime di espressioni  NB: booleani rappresentati da 0 e 1*)
 let rec eval (e: exp) env fenv = match e with  
   | EInt i -> i
   | Den s -> env s
@@ -142,16 +142,101 @@ let p4 = Prog ([Fun("fact", "x", Ifz(Leq(Den "x", EInt 1), EInt 1, Mul(Den "x", 
 Sub(Den "x", EInt 1)))))], App("fact", EInt 3));;
 peval p4;;                                        (* funzione ricorsiva: fattoriale *)
 
-let ptest =
-Prog
+let ptest = Prog 
 ([Fun ("sub1", "n", Sub(Den "n", EInt 1));
-Fun ("fib", "n",
-Ifz(Or(Eq(Den "n", EInt 0), Eq(Den "n", EInt 1)), Den "n",
-Add(App("fib", App("sub1", Den "n")),
-App("fib", App("sub2", Den "n")))));
-Fun ("sub2", "m", Sub(Den "m", EInt 2))],
-App("fib", EInt 5));;
+  Fun ("fib", "n",
+  Ifz(Or(Eq(Den "n", EInt 0), Eq(Den "n", EInt 1)), Den "n",
+  Add(App("fib", App("sub1", Den "n")),
+  App("fib", App("sub2", Den "n")))));
+  Fun ("sub2", "m", Sub(Den "m", EInt 2))],
+  App("fib", EInt 5));;
+
 peval ptest;; (* risultato: 5 *)
+
+(* ============================= TESTS ================= *)
+
+(* SECONDA VERSIONE *)
+
+type 't env = ide -> 't ;;                        (* Ambiente polimorfo*)
+
+                                                  (* Estensione di ambiente *)
+let bind (r : 't env) (i : ide) (v : 't) = function x -> if x = i then v else r x;;
+(* oppure let bind (r: 't env)(i: ide)(v: 't)(x: ide) = if x = i then v else r x ;; *)
+
+exception EmptyEnv;;
+exception WrongFun;;
+
+let env0 = fun x -> raise EmptyEnv ;;            (* Ambiente default *)
+(* oppure let env0 x = raise EmptyEnv ;; *)
+
+(*
+bind : ('a -> 'b) -> 'a -> 'b -> 'a -> 'b
+venv = int env
+fenv = (ide * exp) env
+*)
+
+let rec eval e venv denv = match e with
+  | EInt i -> i
+  | Den s -> venv s
+  | App (s, e1) -> (match (denv s) with
+    (par, body) -> let v = (eval e1 venv denv) in
+      let venv1 = (bind venv par v) in
+        let venv1 = (bind env0 par v) in (* cosi' abbiamo scoping statico *)
+          (* scoping dinamico con let venv1 = (bind venv par v) in *)
+          eval body venv1 denv
+      | _ -> raise WrongFun)
+  | Add (e1,e2) -> (eval e1 venv denv)+(eval e2 venv denv)
+  | Sub (e1,e2) -> (eval e1 venv denv)-(eval e2 venv denv)
+  | Mul (e1,e2) -> (eval e1 venv denv)*(eval e2 venv denv)
+  | Not e1 -> if ((eval e1 venv denv) = 0) then 1 else 0
+  | Or (e1,e2) -> if (eval e1 venv denv) = 0 then (eval e2 venv denv) else 1
+  | And (e1,e2) -> if (eval e1 venv denv) != 0 then (eval e2 venv denv) else 0
+  | Eq (e1,e2) -> if ((eval e1 venv denv) = (eval e2 venv denv)) then 1 else 0
+  | Leq (e1,e2) -> if ((eval e1 venv denv) <= (eval e2 venv denv)) then 1 else 0
+  | Ifz (e1,e2,e3) -> if (eval e1 venv denv) = 1
+                        then (eval e2 venv denv)
+                        else (eval e3 venv denv)
+;;
+
+(* valutazione di dichiarazione: restituisce un ambiente globale *)
+let rec dval (decls: def list) = match decls with
+  | [ ] -> env0
+  | Fun (fname, par, body)::rest -> bind (dval rest) fname (par, body) ;;
+
+(* valutazione di programma: 
+valuta l'espressione usando l'ambiente globale ottenuto dalle dichiarazioni *)
+let pval (p: prog) = match p with
+  Prog(decls, exp) -> let fenv = (dval decls) in eval exp env0 fenv;;
+
+(* ============================= TESTS ================= *)
+
+let p1 = Prog([ ], Add(EInt 4, EInt 5));;
+pval p1;;                                        (* basico: no funzioni *)
+
+let p2 = Prog([Fun("succ", "x", Add(Den "x", EInt 1))], Add(App("succ", EInt 4), EInt 5));;
+pval p2;;                                        (* una funzione non ricorsiva: succ *)
+
+let p3 = Prog([Fun("tria", "x", Ifz(Eq(Den "x", EInt 0), EInt 5, Add(Den "x", App("tria", 
+  Sub(Den "x", EInt 1)))))], App("tria", EInt 4));;
+pval p3;;                                        (* funzione ricorsiva: triangolare *)
+
+let p4 = Prog([Fun("fact", "x", Ifz(Leq(Den "x", EInt 1), EInt 1, Mul(Den "x", App("fact",
+  Sub(Den "x", EInt 1)))))], App("fact", EInt 3));
+pval p4;;                                        (* funzione ricorsiva: fattoriale *)
+
+let ptest = 
+  Prog([Fun("sub1", "n", Sub(Den "n", EInt 1));
+  Fun("fib", "n",
+  Ifz(Or(Eq(Den "n", EInt 0), Eq(Den "n", EInt 1)), Den "n",
+  Add(App("fib", App("sub1", Den "n")),
+  App("fib", App("sub2", Den "n")))));
+  Fun("sub2", "m", Sub(Den "m", EInt 2))],
+  App("fib", EInt 4));;
+
+pval ptest;; (* risultato: 3 *)
+
+
+
 
 
 

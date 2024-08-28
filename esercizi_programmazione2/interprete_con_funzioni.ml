@@ -114,11 +114,6 @@ let env0 = fenv0 ;;                                 (* ambiente locale di defaul
 let ext env (x: string) v = fun y -> if x=y then v else env y ;;
 (* let ext env (x: string) (v) (y: string ) if x = y then v else env y ;; *)
 
-
-
-(* es 7bis*)
-
-
 (*
 env, fenv : 'a -> 'b
 ext : ('a -> 'b) -> 'a -> 'b -> 'a -> 'b
@@ -345,14 +340,29 @@ pval p1;;                                        (* basico: no funzioni *)
 
 let p2 = Prog([Fun("succ", "x", Add(Den "x", EInt 1))], Add(App("succ", EInt 4), EInt 5));;
 pval p2;;                                        (* una funzione non ricorsiva: succ *)
+(* restituisce - : mvT = 10, lo stesso con Name "x", 
+mentre con Ref "x" avrebbe lanciato Exception: EmptyEnv *)
 
 let p3 = Prog([Fun("tria", "x", Ifz(Eq(Den "x", EInt 0), EInt 5, Add(Den "x", App("tria", 
   Sub(Den "x", EInt 1)))))], App("tria", EInt 4));;
 pval p3;;                                        (* funzione ricorsiva: triangolare *)
 
+(* 
+| Val id -> let tmp = (newloc s) in
+  let (v1, s1) = (cval arg r g s) in 
+    cval fBody (bind fDecEnv id (Loc tmp)) g (bind s1 tmp v1) 
+*)
+
 let p4 = Prog([Fun("fact", "x", Ifz(Leq(Den "x", EInt 1), EInt 1, Mul(Den "x", App("fact",
   Sub(Den "x", EInt 1)))))], App("fact", EInt 3));
 pval p4;;                                        (* funzione ricorsiva: fattoriale *)
+(*
+let p4 = Prog(
+  [Var("test", EInt 3); 
+  Fun("fact", Val "x", 
+  Ifz(Leq(Den "x", EInt 1), EInt 1, Mul(Den "x", App("fact", Sub(Den "x", EInt 1)))))],
+App("fact", Den "test")) ;;
+*)
 
 let ptest = 
   Prog([Fun("sub1", "n", Sub(Den "n", EInt 1));
@@ -365,10 +375,40 @@ let ptest =
 
 pval ptest;; (* risultato: 3 *)
 
+(* Programma test del progetto: Fibonacci che usa anche funzione definita dopo:
+Program
+  var base0 { 0 }; var base1 { 1 };
+  fun sub1 (m) { m - base1 };
+  fun fib (n) { if =(n, base0) or =(n, base1) then n else +(fib(sub1(n)), fib (sub2(n)))};
+  fun sub2 (m) { sub1(sub1(m)) };
+  var add { 3 };
+  var test { base1 + add };
+  var add { 5 } &epsilon;
+*)
 
+let ptest0 = Prog ([ 
+  Var("base", EInt 1);
+  Fun("iden", Val "n", Den "n");
+  Fun ("inc", Ref "n", Add(Den "n", EInt 1));
+  Var("test", Add(App("inc", Den "base"), Den "base"))],
+  App("iden", Add(Den "test", App("inc", Den "test")))) ;;
 
+pval ptest0;; (* risultato: 9 *)
 
+let ptest = Prog ([
+  Var("base0", EInt 0); Var("base1", EInt 1);
+  Fun("sub1", Val "n", Sub(Den "n", Den "base1"));
+  Fun("fib", Val "n",
+  Ifz(Or(Eq(Den "n", Den "base0"), Eq(Den "n", Den "base1")), Den "n",
+  Add(App("fib", App("sub1", Den "n")),
+  App("fib", App("sub2", Den "n")))));
+  Fun("sub2", Val "m", Sub(Sub(Den "m", Den "base1"), Den "base1"));
+  Fun ("inc", Ref "n", Add(Den "n", Den "base1"));
+  Var("base", EInt 3);
+  Var("test", Add(App("inc", Den "base"), Den "base"))],
+  App("fib", Den"test")) ;;
 
+pval ptest;; (* risultato: 21 *)
 
 
 

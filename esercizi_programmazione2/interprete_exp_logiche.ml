@@ -6,12 +6,6 @@ type exp = 						(* espressioni *)
   | Bool_e of bool
   | Op_e of exp * operand * exp
   | Var_e of string
-  (*  le seguenti sono commentate perche' incluse in Fun 
-  | Somma of exp * exp
-  | Differenza of exp * exp
-  | Prodotto of exp * exp
-  | Divisione of exp * exp	
-  *)
   | Minore of exp * exp
   | MinoreUguale of exp * exp
   | Maggiore of exp * exp
@@ -107,12 +101,12 @@ let rec eval (e:exp) : exp = match e with				(* Ciclo dell'interprete *)
     	let e1_unwind = substitute (Letrec_e (x,e1,Var_e x)) x e1 in 
           	eval (Let_e (x,e1_unwind,e2))
 	      	(* uso della funzione di sostituzione per fare unwind della ricorsione *)
-
-(*
+    (*
     | Record (body) -> Record (evalRecord body)
     | Select (e, s) -> ( match eval e with
-| Record (body) -> lookupRecord body s
-| _ -> raise TypeMismatch  )	*)
+	| Record (body) -> lookupRecord body s
+	| _ -> raise TypeMismatch  )	
+    *)
 ;;
 
 let rec evalLogica (e:exp) :exp = match e with					(* Interprete di espressioni logiche *)
@@ -167,41 +161,39 @@ type texp = 				(* Espressioni target *)
 	| TOp of texp * operand * texp
 ;;	
 
-(* Map variable name to variable index at compile-time *)
 let rec getindex cenv x = match cenv with 	
-| [] -> failwith("Variable not found") 
-| y::yr -> if x=y then 0 else 1 + getindex yr x
+	| [] -> failwith("Variable not found") 
+	| y::yr -> if x=y then 0 else 1 + getindex yr x
 ;;
 
 (* Compilation to target expressions with numerical indexes instead of
    symbolic variable names.  *)
-(* Compilazione in codice intermedio *)
-let rec tcomp (e:texp)(cenv:' list) :texp = match e with 
-| TVar x -> TVar (getindex cenv x) 
-| TLet (x, erhs, ebody) -> let cenv1 = x :: cenv in 
-TLet (x, tcomp erhs cenv, tcomp ebody cenv1) 
-| TOp(e1, op, e2) -> TOp(tcomp e1 cenv, op, tcomp e2 cenv)
+let rec tcomp (e:texp)(cenv:' list) :texp = match e with 			(* Compilazione in codice intermedio *)
+	| TVar x -> TVar (getindex cenv x) 
+	| TLet (x, erhs, ebody) -> 
+ 		let cenv1 = x :: cenv in 
+		TLet (x, tcomp erhs cenv, tcomp ebody cenv1) 
+	| TOp(e1, op, e2) -> TOp(tcomp e1 cenv, op, tcomp e2 cenv)
 ;;
 
 (* Evaluation of target expressions with variable indexes.  The
    run-time environment renv is a list of variable values (ints).  *)
-(* Interpretazione in codice intermedio *)
-let rec teval (e:texp)(renv:int list) :int = match e with 
-| TVar n -> List.nth renv n 
-| TLet (x, erhs, ebody) -> let xval = teval erhs renv in 
-let renv1 = xval :: renv in 
-teval ebody renv1 
-| TOp(e1, Plus, e2) -> teval e1 renv + teval e2 renv 
-| TOp(e1, Minus, e2) -> teval e1 renv - teval e2 renv 
-| TOp(e1, Times, e2) -> teval e1 renv * teval e2 renv 
-| TOp(e1, Div, e2) -> teval e1 renv / teval e2 renv
+let rec teval (e:texp)(renv:int list) :int = match e with 			(* Interpretazione in codice intermedio *)
+	| TVar n -> List.nth renv n 
+	| TLet (x, erhs, ebody) -> 
+ 		let xval = teval erhs renv in 
+			let renv1 = xval :: renv in 
+				teval ebody renv1 
+	| TOp(e1, Plus, e2) -> teval e1 renv + teval e2 renv 
+	| TOp(e1, Minus, e2) -> teval e1 renv - teval e2 renv 
+	| TOp(e1, Times, e2) -> teval e1 renv * teval e2 renv 
+	| TOp(e1, Div, e2) -> teval e1 renv / teval e2 renv
 ;;
 
 let compile e = tcomp e [];;
 let trun te = teval te [];;
 
 (* Test: il fattoriale *)
-
 (* Body del fattoriale: fun n -> if n < 1 then 1 else n * fact (n - 1) *)
 let fact_body =	 
    Fun_e ( "n",
@@ -209,15 +201,9 @@ let fact_body =
        Op_e (Var_e "n", Times, FunCall_e (Var_e "fact", Op_e (Var_e "n", Minus, Int_e (1))))))
 ;;
 
-(* Chiamata: fact 4 *)
-let fact_call = FunCall_e (Var_e "fact", (Int_e (4))) ;;
-
-(* Definizione ricorsiva del fattoriale chiamato sul valore 4 *)
-let fact4 = Letrec_e ("fact", fact_body, fact_call) ;;
-
-(* Chiamata interprete *)
-eval fact4 ;;
-
+let fact_call = FunCall_e (Var_e "fact", (Int_e (4))) ;;		(* Chiamata: fact 4 *)
+let fact4 = Letrec_e ("fact", fact_body, fact_call) ;;			(* Definizione ricorsiva del fattoriale chiamato sul valore 4 *)
+eval fact4 ;;								(* Chiamata interprete *)
 (* Risultato: - : exp = Int_e 24 *)
 
 (* Test la somma *)
@@ -228,33 +214,15 @@ let sum_body =
        Op_e (Var_e "n", Plus, FunCall_e (Var_e "sum", Op_e (Var_e "n", Minus, Int_e (1))))))
 ;;
 
-(* Chiamata: sum 3 *)
-let sum_call = FunCall_e (Var_e "sum", (Int_e (3))) ;;
-
-
-(* Definizione ricorsiva della funzione sum chiamato sul valore 3 *)
-let sum3 = Letrec_e ("sum", sum_body, sum_call) ;;
-
-
-(* Chiamata interprete *)
-eval sum3;;
-
+let sum_call = FunCall_e (Var_e "sum", (Int_e (3))) ;;			(* Chiamata: sum 3 *)
+let sum3 = Letrec_e ("sum", sum_body, sum_call) ;;			(* Definizione ricorsiva della funzione sum chiamato sul valore 3 *)
+eval sum3 ;;								(* Chiamata interprete *)
 (* Risultato: - : exp = Int_e 6 *)
 
-(*
-let typecheck (x,y) :exp = match x with
-	| "int" -> ( match y with
-		| Int_e u -> Bool_e true
-		| _ -> Bool_e false )
-	| "bool" -> ( match y with
-		| Int_e u -> Bool_e true
-		| _ -> Bool_e false )
-	| _ -> failwith("Not a valid type")
-;;
-*)
+
 let typecheck (x,y) :bool = match x with
 	| "int" -> ( match y with
-		| Int_e( u )-> true
+		| Int_e( u )-> true		(*oppure | Int_e u -> Bool_e true *)
 		| _ -> false )
 	| "bool" -> ( match y with
 		| Int_e( u )-> true
@@ -289,8 +257,9 @@ let eq(x,y) = if typecheck ("int", x) & typecheck ("int",y) then ( match (x,y) w
 eq(Int_e 3, Int_e 4);;
 eq(Int_e 3, Int_e 3);;
 
-(* Ulteriore esempio *)
 
+
+(* Ulteriore esempio -------------------------------------------------------------------------------*)
 
 type exp =	CstI of int	| Prim of string * exp * exp;;
 
@@ -300,10 +269,9 @@ let e2 = Prim("-", CstI 3, CstI 4);;
 
 let e3 = Prim("+", Prim("*", CstI 7, CstI 9), CstI 10);;
 
-(* Valutazione delle espressioni *)
 
-let rec eval (e : exp) : int = match e with
-| CstI i -> i
+let rec eval (e : exp) : int = match e with			(* Valutazione delle espressioni *)
+	| CstI i -> i
     	| Prim("+", e1, e2) -> eval e1 + eval e2
     	| Prim("*", e1, e2) -> eval e1 * eval e2
     	| Prim("-", e1, e2) -> eval e1 - eval e2
@@ -314,9 +282,7 @@ let e2v = eval e2;;
 let e3v = eval e3;;
 
 
-(* Modifica del significato della sottrazione *)
-
-let rec evalm (e : exp) : int = match e with
+let rec evalm (e : exp) : int = match e with			(* Modifica del significato della sottrazione *)
     | CstI i -> i
     | Prim("+", e1, e2) -> evalm e1 + evalm e2
     | Prim("*", e1, e2) -> evalm e1 * evalm e2
@@ -324,6 +290,5 @@ let rec evalm (e : exp) : int = match e with
     | Prim _            -> failwith "unknown primitive";;
 
 let e4v = evalm (Prim("-", CstI 10, CstI 27));;
-
 
 

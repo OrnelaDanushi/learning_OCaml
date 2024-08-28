@@ -39,6 +39,7 @@ In particolare, valutare il programma con risultato 5
 Program fib(5)
 fun sub1 (n) {-(n, 1)};
 fun fib (n) { if =(n,0) then n else + (fib (sub1(n)), fib (sub2(n)))};
+  (* fib usa sub2, funzione definita dopo *)
 fun sub2 (m) { sub1 (sub1(m))}; epsilon
 
 Definire una sintassi astratta per il linguaggio, con opportuni tipi di dato
@@ -88,16 +89,69 @@ let fenv0 = fun x -> raise EmptyEnv ;;              (* ambiente globale di defau
 
 let env0 = fenv0 ;;                                 (* ambiente locale di default *)
 
+                                                    (* estensione di ambiente *)
 let ext env (x: string) v = fun y -> if x=y then v else env y ;;
 (* let ext env (x: string) (v) (y: string ) if x = y then v else env y ;; *)
 
+(*
+env, fenv : 'a -> 'b
+ext : ('a -> 'b) -> 'a -> 'b -> 'a -> 'b
+env : string -> int
+fenv : string -> (string * exp)
+*)
 
+(* valutazione di espressioni  NB: booleani rappresentati da 0 e 1*)
+let rec eval (e: exp) env fenv = match e with  
+  | EInt i -> i
+  | Den s -> env s
+  | App(s,e2) -> let (par,body) = (fenv s) in (eval body (ext env par (eval e2 env fenv)) fenv)
+  | Add (e1,e2) -> (eval e1 env fenv)+(eval e2 env fenv)
+  | Sub (e1,e2) -> (eval e1 env fenv)-(eval e2 env fenv)
+  | Mul (e1,e2) -> (eval e1 env fenv)*(eval e2 env fenv)
+  | Not e1 -> if ((eval e1 env fenv) = 0) then 1 else 0
+  | Or (e1,e2) -> if (eval e1 env fenv) = 0 then (eval e2 env fenv) else 1
+  | And (e1,e2) -> if (eval e1 env fenv) != 0 then (eval e2 env fenv) else 0
+  | Eq (e1,e2) -> if ((eval e1 env fenv) = (eval e2 env fenv)) then 1 else 0
+  | Leq (e1,e2) -> if ((eval e1 env fenv) <= (eval e2 env fenv)) then 1 else 0
+  | Ifz (e1,e2,e3) -> if (eval e1 env fenv) = 1 then (eval e2 env fenv)
+  else (eval e3 env fenv) ;;
 
+(* valutazione di dichiarazione: restituisce un ambiente globale *)
+let rec dval (decls: def list) = match decls with
+  | [ ] -> fenv0
+  | Fun (fname, par, body)::rest -> ext (dval rest) fname (par, body) ;;
 
+(* valutazione di programma: 
+valuta l'espressione usando l'ambiente globale ottenuto dalle dichiarazioni *)
+let peval (p: prog) = match p with
+  Prog (decls, expr) -> let fenv = dval(decls) in eval expr env0 fenv;;
 
+(* ============================= TESTS ================= *)
+let p1 = Prog ([ ], Add(EInt 4, EInt 5));;
+peval p1;;                                        (* basico: no funzioni *)
 
+let p2 = Prog ([Fun("succ", "x", Add(Den "x", EInt 1))], Add(App("succ", EInt 4), EInt 5));;
+peval p2;;                                        (* una funzione non ricorsiva: succ *)
 
+let p3 = Prog (
+[Fun("tria", "x", Ifz(Eq(Den "x", EInt 0), EInt 5, Add(Den "x", App("tria", Sub(Den "x", EInt
+1)))))], App("tria", EInt 4));;
+peval p3;;                                        (* funzione ricorsiva: triangolare *)
 
+let p4 = Prog ([Fun("fact", "x", Ifz(Leq(Den "x", EInt 1), EInt 1, Mul(Den "x", App("fact",
+Sub(Den "x", EInt 1)))))], App("fact", EInt 3));;
+peval p4;;                                        (* funzione ricorsiva: fattoriale *)
+
+let ptest =
+Prog
+([Fun ("sub1", "n", Sub(Den "n", EInt 1));
+Fun ("fib", "n",
+Ifz(Or(Eq(Den "n", EInt 0), Eq(Den "n", EInt 1)), Den "n",
+Add(App("fib", App("sub1", Den "n")),
+App("fib", App("sub2", Den "n")))));
+Fun ("sub2", "m", Sub(Den "m", EInt 2))],
+App("fib", EInt 5));;
+peval ptest;; (* risultato: 5 *)
 
 
 

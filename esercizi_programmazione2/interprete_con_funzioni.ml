@@ -40,6 +40,18 @@ Definire una semantica operazionale mediante regole di inferenza che rispetti
   e deve conservare le eventuali modifiche anche dopo il termine della funzione
 - tutte le altre operazioni abbiano il significato opportuno
 
+Versione 2
+- modificare la semantica in modo che se una funzione passa il proprio parametro
+formale per riferimento, alla fine della chiamata il valore calcolato del corpo della funzione
+viene assegnato al parametro attuale
+es: restituire il valore 9.
+Prog([ Var("base", EInt 1);
+    Fun("iden", Val "n", Den "n");
+    Fun("inc", Ref "n", Add(Den "n", EInt 1));
+    Var("test", Add(App("inc", Den "base"), Den "base"))
+  ],App("iden", Add(Den "test", App("inc", Den "test"))))
+
+
 Verificare la correttezza di tale semantica progettando ed eseguendo casi di test,
 sufficienti a testare tutti gli operatori.
 
@@ -101,6 +113,11 @@ let env0 = fenv0 ;;                                 (* ambiente locale di defaul
                                                     (* estensione di ambiente *)
 let ext env (x: string) v = fun y -> if x=y then v else env y ;;
 (* let ext env (x: string) (v) (y: string ) if x = y then v else env y ;; *)
+
+
+
+(* es 7bis*)
+
 
 (*
 env, fenv : 'a -> 'b

@@ -1,6 +1,8 @@
 (* Programmare un controllore di tipo *)
 
 type ide = string ;;
+type loc = int ;;
+type param = Val of ide | Name of ide | Ref of ide ;;
 
 type exp =	
 	| Eint of int 	
@@ -17,51 +19,66 @@ type exp =
 	| Not of exp 		
 	| Ifthenelse of exp * exp * exp 	
 	| Let of ide * exp * exp 
-	| Fun of ide * exp 	
+ 	| Fun of param * exp 			(* | Fun of ide * exp 	*)
 	| FunCall of exp * exp 	
-	| Letrec of ide * exp * exp
+
+ 	(*
+ 	| Letrec of ide * exp * exp
 	| RecFun of ide * ide * exp
+ 	*)
 ;;
 
-type 't env = ide -> 't ;;			(*ambiente polimorfo*)
-
+type 't env = ide -> 't ;;				(*ambiente polimorfo*)
 let emptyenv (v: 't) = function x -> v ;;
 (* oppure let emptyenv (v:'t) (x) = v ;; *)
-
+let env0 = (emptyenv Unbound) ;;			(*ambiente default*)
 let applyenv (r: 't env) (i: ide) = r i ;;
 
-let bind (r: 't env) (i: ide) (v: 't) = function x -> if x = i then v else applyenv r x ;;
+let bindE (r: 't env) (i: ide) (v: 't) = function x -> if x = i then v else applyenv r x ;;
 (* oppure
 let bind (r: 't env) (i: ide) (v: 't) (x: ide ) = if x = i then v else applyenv r x ;;	*)
 
-type evT =					(* tipi esprimibili *)
-| Int of int 	
-| Bool of bool 		
-| Unbound  
-| FunVal of evFun 				
-| RecFunVal of ide * evFun 
-	and evFun = ide * exp * evT env		(* se evFun le diamo scoping statico: si porta appresso l’ambiente *)
+type 't store = loc -> 't ;;				(*ambiente polimorfo*)
+let store0 = (emptyenv Undef);;
+let applystore (s: 't store) (l: loc) = s l ;;
+let bindM (s: 't store) (l: loc) (v: 't) = function x -> if x = l then v else applystore s x ;;
 
-(* NON FUNZIONA 
-and makefunrec (f, arg, body, r) = let functional (rr: evT env) = 
-		bind (r, f, FunVal(arg,body,rr)) in
-			let rec(rfix:evT env) = function x -> (functional rfix) x in
-					FunVal(arg,body,rfix) 
-L’ambiente calcolato da functional contiene l’associazione tra il nome della funzione e la chiusura con l’ambiente soluzione della definizione 
-*)
 
-(*  La definizione di evFun mostra che una astrazione funzionale è una chiusura, che comprende: 
-nome del parametro formale : ide
-codice della funzione dichiarata : exp
-ambiente al momento della dichiarazione : evT env 
-	
-| RecFunVal of ide * evFun 
-	and evFun = ide * exp		 	se evFun le diamo scoping dinamico: le togliamo l’ambiente appresso *)
-;;
+(* tipi memorizzabili ed esprimibili *)
+type mvT = Int of int | Bool of bool | Undef ;;
+type evT =					
+	| Loc of loc
+	| Unbound  
+	| FunVal of evFun 	
+	| ExpVal of evExp
+ 	and evFun = param * exp * evT env
+  	and evExp = exp * evT env ;;
+
+  	(*
+	| RecFunVal of ide * evFun 
+		and evFun = ide * exp * evT env		(* se evFun le diamo scoping statico: si porta appresso l’ambiente *)
+
+	(* NON FUNZIONA 
+	and makefunrec (f, arg, body, r) = let functional (rr: evT env) = 
+			bind (r, f, FunVal(arg,body,rr)) in
+				let rec(rfix:evT env) = function x -> (functional rfix) x in
+						FunVal(arg,body,rfix) 
+	L’ambiente calcolato da functional contiene l’associazione tra il nome della funzione e la chiusura con l’ambiente soluzione della definizione 
+	*)
+
+	(*  La definizione di evFun mostra che una astrazione funzionale è una chiusura, che comprende: 
+	nome del parametro formale : ide
+	codice della funzione dichiarata : exp
+	ambiente al momento della dichiarazione : evT env 
+		
+	| RecFunVal of ide * evFun 
+		and evFun = ide * exp		 	se evFun le diamo scoping dinamico: le togliamo l’ambiente appresso *)
+	;;
+	*)
 
 (* runtime support *)
 
-let typecheck (s: string) (v: evT) : bool = match s with	(* type checking *)
+let typecheck (s: string) (v: mvT) : bool = match s with	(* type checking *)
 	| "int" -> (match v with
 		| Int(_) -> true 
 		|_ -> false) 
@@ -110,7 +127,17 @@ let non x = if (typecheck "bool" x) then (match x with
 			| Bool(false) -> Bool(true))
 		else failwith("Type error");;
 
+(*contatore di locazioni: e' un puntatore!!*)
+(* la presenza di s e' concettuale: la newloc dovrebbe dipendere dallo store... *)
+let count = ref 0;;
+let newloc (s : mvT store) = (incr count; !count);;
 
+let rec dval (e: exp) (r: evT env) (s: mvT store) : evT = match e with
+	| Fun(p, a) -> FunVal(p, a, r)
+	| Den id -> (applyenv r id)
+	| _ -> Loc (newloc s) ;;
+
+(*
 let rec eval (e : exp) (r : evT env) : evT = match e with		(* interprete *)
 	| Eint n -> Int n 
 	| Ebool b -> Bool b 
@@ -203,6 +230,9 @@ eval (Letrec("fact",								(* Valutazione -: evT = Int 6*)
 
 let rec fact = fun n -> if n = 0 then 1 else n * fact (n-1) in fact(3);;	(* Sintassi -: int = 6*)
 
+*)
+
+
 
 
 (* Ulteriore versione *)
@@ -261,3 +291,63 @@ let t2 = typ e2 env in (match (ope, t1, t2) with
 let typeCheck e = typ e [];;
 
 
+(* versione completa *)
+
+let rec eval (e : exp) (r : evT env) (s : mvT store) : mvT = match e with
+	| Eint n -> Int n
+	| Ebool b -> Bool b
+	| Den id -> let tmp = (dval e r s) in (match tmp with
+		| Loc lo -> applystore s lo
+		| ExpVal(e1, r1) -> eval e1 r1 s
+		| _ -> failwith("DenExp error"))
+	| IsZero a -> iszero (eval a r s)
+	| Eq(a, b) -> eq (eval a r s) (eval b r s)
+	| Prod(a, b) -> prod (eval a r s) (eval b r s)
+	| Sum(a, b) -> sum (eval a r s) (eval b r s)
+	| Diff(a, b) -> diff (eval a r s) (eval b r s)
+	| Minus a -> minus (eval a r s)
+	| And(a, b) -> et (eval a r s) (eval b r s)
+	| Or(a, b) -> vel (eval a r s) (eval b r s)
+	| Not a -> non (eval a r s)
+	| Ifthenelse(a, b, c) -> let g = (eval a r s) in
+		if (typecheck "bool" g)
+			then (if g = Bool(true) then (eval b r s) else (eval c r s))
+		else failwith ("Guard error")
+	| Let(id, e1, e2) -> let tmp = (dval e1 r s) in (match tmp with
+		| FunVal(p, a, r) -> eval e2 (bindE r id tmp) s
+		| ExpVal(e3, r1) -> let tmp = (dval e3 r1 s) in (match tmp with
+			| Loc lo -> eval e2 (bindE r id tmp) (bindM s lo (eval e3 r1 s))
+			| _ -> failwith("ExpVal error"))
+		| Loc lo -> let r1 = (bindE r id tmp) in
+			let s1 = (bindM s lo (eval e1 r s)) in eval e2 r1 s1
+		|_ -> failwith("LetExp error"))
+		| FunCall(id, arg) -> let fClosure = (dval id r s) in (match fClosure with
+			| FunVal(par, fBody, fDecEnv) -> auxval fClosure arg r s
+			| _ -> failwith("FunCallExp error"))
+	and auxval (e : evT) (arg : exp) (r : evT env) (s : mvT store) : mvT = match e with
+		| FunVal(par, fBody, fDecEnv) -> (match par with
+			| Val id -> let tmp = (newloc s) in
+				eval fBody (bindE fDecEnv id (Loc tmp)) (bindM s tmp (eval arg r s))
+			| Name id -> let tmp = (ExpVal(arg, r)) in
+				eval fBody (bindE fDecEnv id tmp) s
+			| (* si passa l'ambiente al momento della chiamata di funzione *)
+			Ref id -> let tmp = (dval arg r s) in (match tmp with
+				| Loc lo -> eval fBody (bindE fDecEnv id tmp) s
+				| (* se e' una locazione nuova, lo e' indefinito in s *)
+					_ -> failwith("RefPar error") ) )
+				|_ -> failwith("FunCalltExp error");;
+
+
+(* ============================= TESTS ================= *)
+let env0 = emptyenv Unbound;;								(* basico: no let *)
+
+let e1 = FunCall(Fun(Ref "y", Sum(Den "y", Eint 1)), Eint 3);;
+eval e1 env0;;
+
+let e2 = FunCall(Let("x", Eint 2, Fun(Ref "y", Sum(Den "y", Den "x"))), Eint 3);;
+eval e2 env0;;
+
+(*Non torna *)
+let e2 = Let("x",Eint 2, "f", Fun(Ref "y", FunCall(Fun(Ref "x", Let("x", Eint 2, Fun(Ref "y",
+	Sum(Den "y", Den "x"))), Eint 3))));;
+eval e2 env0;;
